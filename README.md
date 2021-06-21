@@ -10,7 +10,7 @@ Ointers is a library for representing pointers where some bits have
 been stolen so that they may be used by the programmer for something
 else. In effect, it's a small amount of free storage
 
-Fully supports no_std, dependency-free.
+Fully supports no_std, dependency-free, <100loc.
 
 ## Bit sources
 
@@ -142,6 +142,23 @@ These will likely be harder:
 * Intel's new 5PT is of incredibly niche interest - if you want us to
   test it, you'll have to sponsor it because I don't have access to
   the hardware..
+
+## Changelog
+
+### v2.0.0
+
+New APIS:
+
+* `pack()` - packs a pointer into the low bits of a usize.
+* `unpack()` - reverse of pack.
+* `asv_mask()` - calculates a mask where the stolen bits are set on by a, s, v
+* `asv_mask()` - calculates a mask where the stolen bits are set on by total bits
+* `Ointer::raw()` - returns the raw data in the ointer (stolen + ptr) as a usize
+* `NotNull::raw()` - same, but for NotNull
+
+Changes:
+
+* `Ointer` now uses a usize internally.
 
 ## Copyright and License
 

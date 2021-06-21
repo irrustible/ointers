@@ -1,6 +1,6 @@
 [package]
 name = "ointers"
-version = "1.0.0"
+version = "2.0.0"
 description = "What do you call a pointer we stole the high bits off? An ointer."
 keywords = ["pointer", "bits", "intrusive", "tagged"]
 categories = ["algorithms", "data-structures", "embedded", "memory-management", "no-std"]
@@ -8,7 +8,7 @@ authors = ["James Laver <james.laver@gmail.com>"]
 homepage = "https://github.com/irrustible/ointers"
 repository = "https://github.com/irrustible/ointers"
 documentation = "https://docs.rs/ointers"
-editifon = "2018"
+edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 

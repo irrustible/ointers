@@ -221,7 +221,3 @@ fn round_trip_not_null_boxes() {
         }
     })
 }
-
-fn mask(n: u8) -> usize {
-    (isize::MIN >> (max(n, 1) - 1)) as usize
-}
