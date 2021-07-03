@@ -242,7 +242,7 @@ pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> usize {
     #[cfg(debug_assertions)]
     {
         debug_assert!((1 << a) <= align_of::<T>());
-        #[cfg(not(target_pointer_width="64"))]
+        #[cfg(all(not(target_pointer_width="64"), not(feature="i_know_what_im_doing")))]
         debug_assert!(v == 0);
         debug_assert!(v <= 25);
         // If S is set, the user has indicated they will never be
