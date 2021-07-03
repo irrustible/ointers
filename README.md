@@ -145,9 +145,14 @@ These will likely be harder:
 
 ## Changelog
 
+### v3.0.1
+
+* Add `i_know_what_im_doing` feature to enable stealing from V when
+  not building for a 64-bit target.
+
 ### v3.0.0
 
-    * Make `Ointer<T>` and `NotNull<T>` be `Clone + Copy` even if T is not.
+* Make `Ointer<T>` and `NotNull<T>` be `Clone + Copy` even if T is not.
 
 ### v2.0.0
 
