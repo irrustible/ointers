@@ -145,6 +145,10 @@ These will likely be harder:
 
 ## Changelog
 
+### v3.0.0
+
+    * Make `Ointer<T>` and `NotNull<T>` be `Clone + Copy` even if T is not.
+
 ### v2.0.0
 
 New APIS:

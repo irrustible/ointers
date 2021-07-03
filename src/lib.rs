@@ -107,7 +107,6 @@
 //! you're probably limited to 16 bits in general.
 
 #![no_std]
-use core::cmp::max;
 use core::marker::PhantomData;
 use core::mem::align_of;
 use core::ptr::NonNull;
@@ -119,12 +118,18 @@ use core::ptr::NonNull;
 /// S: whether to steal the sign bit.
 /// V: number of bits to steal from unused virtual address space.
 
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
+#[derive(Debug,Eq,Hash,PartialEq)]
 #[repr(transparent)]
 pub struct Ointer<T, const A: u8, const S: bool, const V: u8> {
     ptr: usize,
     _phantom: PhantomData<*mut T>,
 }
+
+impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
+    fn clone(&self) -> Self { Ointer { ptr: self.ptr, _phantom: PhantomData } }
+}
+
+impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
     /// Creates a new Ointer from a presumed legitimate pointer.
@@ -170,9 +175,15 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 /// T: type pointed to.
 /// V: number of bits to steal directly by masking them off.
 /// A: number of bits to steal based on the alignment requirements of T.
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
+#[derive(Debug,Eq,Hash,PartialEq)]
 #[repr(transparent)]
 pub struct NotNull<T, const A: u8, const S: bool, const V: u8>(NonNull<T>);
+
+impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
+    fn clone(&self) -> Self { NotNull(self.0) }
+}
+
+impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
     /// Creates a new Ointer from a presumed legitimate pointer.
@@ -193,7 +204,7 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 
 
     /// Returns the stolen bits in the high pos.
-    pub fn stolen(self) -> usize { self.0.as_ptr() as usize & Self::mask() }
+    pub fn stolen(self) -> usize { self.0.as_ptr() as usize & asv_mask(A, S, V) }
 
     /// Takes a value from the high bits of the provided usize and
     /// steals them from the ointer.
@@ -212,10 +223,6 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
     /// Direct access to the underlying data. The pointer it returns
     /// may not be valid.
     pub fn raw(self) -> usize { self.0.as_ptr() as usize }
-
-    /// Produces a bit mask used to access the stolen bits.
-    // use arithmetic shift to populate a mask where the top bits are set
-    pub fn mask() -> usize { (isize::MIN >> (max(A + S as u8 + V,1) - 1)) as usize }
 
 }
 
@@ -286,7 +293,12 @@ pub unsafe fn unpack<T: Sized>(packed: usize, a: u8, s: bool, v: u8) -> *mut T {
 }
 
 /// Produces a mask where the stolen bits (at the top) are set
-pub fn asv_mask(a: u8, s: bool, v: u8) -> usize { mask(a + s as u8 + v) }
+pub const fn asv_mask(a: u8, s: bool, v: u8) -> usize { mask(a + s as u8 + v) }
 
 /// Produces a mask where the stolen bits (at the top) are set
-pub fn mask(bits: u8) -> usize { (isize::MIN >> (max(bits,1) - 1)) as usize }
+pub const fn mask(bits: u8) -> usize { (isize::MIN >> (max(bits as usize,1) - 1)) as usize }
+
+// core::cmp::max isn't a const fn
+const fn max(x: usize, y: usize) -> usize {
+    if x <= y { y } else { x }
+}
