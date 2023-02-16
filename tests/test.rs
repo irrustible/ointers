@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::fmt::Debug;
 use std::ptr::NonNull;
 use ointers::*;
@@ -160,7 +159,7 @@ fn round_trip_ointer_boxes() {
             #[cfg(target_pointer_width="64")] rt_ointer!(a.read(), a, theft, usize, 14);
             #[cfg(target_pointer_width="64")] rt_ointer!(a.read(), a, theft, usize, 15);
             #[cfg(target_pointer_width="64")] rt_ointer!(a.read(), a, theft, usize, 16);
-            Box::from_raw(a);
+            drop(Box::from_raw(a));
         }
     })
 }
@@ -217,7 +216,7 @@ fn round_trip_not_null_boxes() {
             #[cfg(target_pointer_width="64")] rt_not_null!(a.read(), b, theft, usize, 14);
             #[cfg(target_pointer_width="64")] rt_not_null!(a.read(), b, theft, usize, 15);
             #[cfg(target_pointer_width="64")] rt_not_null!(a.read(), b, theft, usize, 16);
-            Box::from_raw(a);
+            drop(Box::from_raw(a));
         }
     })
 }

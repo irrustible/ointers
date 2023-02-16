@@ -1,6 +1,6 @@
 [package]
 name = "ointers"
-version = "3.0.1"
+version = "4.0.0"
 description = "What do you call a pointer we stole the high bits off? An ointer."
 keywords = ["pointer", "bits", "intrusive", "tagged"]
 categories = ["algorithms", "data-structures", "embedded", "memory-management", "no-std"]
@@ -13,9 +13,13 @@ license = "Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 
 [features]
-default = []
+default = ["alloc"]
+alloc = []
 i_know_what_im_doing = []
+
+[dependencies]
 
 [dev-dependencies]
 rand = "0.8.4"
 rayon = "1.5.1"
+

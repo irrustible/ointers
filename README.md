@@ -145,6 +145,16 @@ These will likely be harder:
 
 ## Changelog
 
+### v4.0.0
+
+Security (please upgrade as soon as possible, i've yanked old versions):
+
+* Fix possible UB when stealing alignment bits with `Ox`/`NotNull`. 
+
+Features:
+
+* Add method `new_stealing` for all types allowing to create while stealing data.
+
 ### v3.0.1
 
 * Add `i_know_what_im_doing` feature to enable stealing from V when
@@ -160,10 +170,10 @@ New APIS:
 
 * `pack()` - packs a pointer into the low bits of a usize.
 * `unpack()` - reverse of pack.
-* `asv_mask()` - calculates a mask where the stolen bits are set on by a, s, v
-* `asv_mask()` - calculates a mask where the stolen bits are set on by total bits
-* `Ointer::raw()` - returns the raw data in the ointer (stolen + ptr) as a usize
-* `NotNull::raw()` - same, but for NotNull
+* `asv_mask()` - calculates a mask where the stolen bits are set on by a, s, v.
+* `mask()` - calculates a mask where the stolen bits are set on by total bits.
+* `Ointer::raw()` - returns the raw data in the ointer (stolen + ptr) as a usize.
+* `NotNull::raw()` - same, but for `NotNull`.
 
 Changes:
 

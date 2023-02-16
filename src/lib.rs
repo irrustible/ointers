@@ -12,8 +12,8 @@
 //! ## Alignment bits (const parameter A)
 //!
 //! If we know that a pointer's address will always be aligned to `A`
-//! bytes where A > 1, we can steal log2(A-1) bytes. For an 8-byte aligned
-//! value, this provides a modest 3 bits.
+//! bytes where A > 1, we can steal log2(A-1) bits. For an 8-byte
+//! aligned value, this provides a modest 3 bits.
 //!
 //! If you have values aligned to some larger width, you could get even
 //! more. It's common in parallel programming to pad data to a cache line
@@ -105,10 +105,17 @@
 //! space, you should limit yourself to 7 bits for V. Likewise if you know
 //! you'll be on 3-deep page tables, you can steal a whopping 25 bits. But
 //! you're probably limited to 16 bits in general.
-
 #![no_std]
+
+#[cfg(feature="alloc")]
+extern crate alloc;
+#[cfg(feature="alloc")]
+use alloc::boxed::Box;
+
+use core::hash::*;
 use core::marker::PhantomData;
 use core::mem::align_of;
+use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
 /// A pointer we stole the high bits off
@@ -118,55 +125,77 @@ use core::ptr::NonNull;
 /// S: whether to steal the sign bit.
 /// V: number of bits to steal from unused virtual address space.
 
-#[derive(Debug,Eq,Hash,PartialEq)]
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Ointer<T, const A: u8, const S: bool, const V: u8> {
-    ptr: usize,
-    _phantom: PhantomData<*mut T>,
+  ptr: usize,
+  _phantom: PhantomData<*mut T>,
 }
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
-    fn clone(&self) -> Self { Ointer { ptr: self.ptr, _phantom: PhantomData } }
+impl<T, const A: u8, const S: bool, const V: u8> Hash for Ointer<T, A, S, V> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.ptr.hash(state)
+  }
 }
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
+impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ointer<T, A, S, V> {
+  fn eq(&self, other: &Self) -> bool { self.ptr == other.ptr }
+}
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
-    /// Creates a new Ointer from a presumed legitimate pointer.
-    ///
-    /// # Safety
-    ///
-    /// * T's alignment must enable stealing A bits.
-    /// * The high bits (sign upwards) must match a stack pointer's high bits.
-    /// * If compiling for a 64bit arch, V must be at most 25.
-    /// * If compiling for a non-64bit arch, V must be 0.
-    ///
-    /// These invariants are checked with `debug_assert` only, hence
-    /// `unsafe`. The usual caveats of pointers apply.
-    pub unsafe fn new(ptr: *mut T) -> Self {
-        Ointer { ptr: pack(ptr, A, S, V), _phantom: PhantomData }
-    }
+impl<T, const A: u8, const S: bool, const V: u8> Eq for Ointer<T, A, S, V> {}
 
-    /// Returns the stolen bits in the high pos.
-    pub fn stolen(self) -> usize { self.ptr as usize & asv_mask(A, S, V) }
+impl<T, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
+  fn clone(&self) -> Self { Ointer { ptr: self.ptr, _phantom: PhantomData } }
+}
 
-    /// Takes a value from the high bits of the provided usize and
-    /// steals them from the ointer.
-    pub fn steal(self, bits: usize) -> Self {
-        let mask = asv_mask(A, S, V);
-        let bits = bits & mask;
-        let ptr = self.ptr & !mask;
-        Self { ptr: (ptr | bits), _phantom: PhantomData }
-    }
+impl<T, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
 
-    /// Get the pointer without the stolen bits
-    pub fn as_ptr(self) -> *mut T {
-        unsafe { unpack(self.ptr, A, S, V) as *mut T }
-    }
+impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
+  /// Creates a new Ointer from a presumed legitimate pointer.
+  ///
+  /// # Safety
+  /// 
+  /// * T's alignment must enable stealing A bits.
+  /// * The high bits (sign upwards) must match a stack pointer's high bits.
+  /// * If compiling for a 64bit arch, V must be at most 25.
+  /// * If compiling for a non-64bit arch, V must be 0.
+  ///
+  /// These invariants are checked with `debug_assert` only, hence
+  /// `unsafe`. The usual caveats of pointers apply.
+  pub unsafe fn new(ptr: *mut T) -> Self {
+    Ointer { ptr: pack(ptr, A, S, V), _phantom: PhantomData }
+  }
 
-    /// Direct access to the underlying data. The pointer it returns
-    /// may not be valid.
-    pub fn raw(self) -> *mut T { self.ptr as *mut T }
+  /// Constructor that enables stealing bits.
+  ///
+  /// # Safety
+  ///
+  /// Same as `new`
+  pub unsafe fn new_stealing(ptr: *mut T, bits: usize) -> Self {
+    let mask = asv_mask(A, S, V);
+    let ptr = (bits & mask) | (ptr as usize & !mask);
+    Self { ptr, _phantom: PhantomData }
+  }
+
+  /// Returns the stolen bits in the high pos.
+  pub fn stolen(self) -> usize { self.ptr & asv_mask(A, S, V) }
+
+  /// Takes a value from the high bits of the provided usize and
+  /// steals them from the ointer.
+  pub fn steal(self, bits: usize) -> Self {
+    let mask = asv_mask(A, S, V);
+    let ptr = (bits & mask) | (self.ptr & !mask);
+    Self { ptr, _phantom: PhantomData }
+  }
+
+  /// Get the pointer without the stolen bits
+  pub fn as_ptr(self) -> *mut T {
+    unsafe { unpack(self.ptr, A, S, V) as *mut T }
+  }
+
+  /// Direct access to the underlying data. The pointer it returns
+  /// may not be valid.
+  pub fn raw(self) -> usize { self.ptr }
 
 }
 
@@ -175,56 +204,185 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 /// T: type pointed to.
 /// V: number of bits to steal directly by masking them off.
 /// A: number of bits to steal based on the alignment requirements of T.
-#[derive(Debug,Eq,Hash,PartialEq)]
+#[derive(Debug)]
 #[repr(transparent)]
-pub struct NotNull<T, const A: u8, const S: bool, const V: u8>(NonNull<T>);
+pub struct NotNull<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
-    fn clone(&self) -> Self { NotNull(self.0) }
+  fn clone(&self) -> Self { NotNull(self.0, PhantomData) }
 }
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
 
+impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for NotNull<T, A, S, V> {
+  fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+}
+
+impl<T, const A: u8, const S: bool, const V: u8> Eq for NotNull<T, A, S, V> {}
+
+impl<T, const A: u8, const S: bool, const V: u8> Hash for NotNull<T, A, S, V> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.0.hash(state)
+  }
+}
+
 impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
-    /// Creates a new Ointer from a presumed legitimate pointer.
-    ///
-    /// # Safety
-    ///
-    /// * T's alignment must enable stealing A bits.
-    /// * The high bits (sign upwards) must match a stack pointer's high bits.
-    /// * If compiling for a 64bit arch, V must be at most 25.
-    /// * If compiling for a non-64bit arch, V must be 0.
-    ///
-    /// These invariants are checked with `debug_assert` only, hence
-    /// `unsafe`. The usual caveats of pointers apply.
-    pub unsafe fn new(ptr: NonNull<T>) -> Self {
-        let ptr = pack(ptr.as_ptr(), A, S, V) as *mut T;
-        NotNull(NonNull::new_unchecked(ptr as *mut T))
-    }
+  /// Creates a new Ointer from a presumed legitimate pointer.
+  ///
+  /// # Safety
+  ///
+  /// * T's alignment must enable stealing A bits.
+  /// * The high bits (sign upwards) must match a stack pointer's high bits.
+  /// * If compiling for a 64bit arch, V must be at most 25.
+  /// * If compiling for a non-64bit arch, V must be 0.
+  ///
+  /// These invariants are checked with `debug_assert` only, hence
+  /// `unsafe`. The usual caveats of pointers apply.
+  pub unsafe fn new(ptr: NonNull<T>) -> Self {
+    let ptr = pack(ptr.as_ptr(), A, S, V) as *mut u8;
+    NotNull(NonNull::new_unchecked(ptr), PhantomData)
+  }
 
+  /// Constructor that enables stealing bits.
+  ///
+  /// # Safety
+  ///
+  /// Same as `new`
+  pub unsafe fn new_stealing(ptr: NonNull<T>, bits: usize) -> Self {
+    let mask = asv_mask(A, S, V);
+    let ptr = (bits & mask) | (ptr.as_ptr() as usize & !mask);
+    NotNull(NonNull::new_unchecked(ptr as *mut u8), PhantomData)
+  }
 
-    /// Returns the stolen bits in the high pos.
-    pub fn stolen(self) -> usize { self.0.as_ptr() as usize & asv_mask(A, S, V) }
+  /// Returns the stolen bits in the high pos.
+  pub fn stolen(self) -> usize { self.0.as_ptr() as usize & asv_mask(A, S, V) }
 
-    /// Takes a value from the high bits of the provided usize and
-    /// steals them from the ointer.
-    pub fn steal(self, bits: usize) -> Self {
-        let mask = asv_mask(A, S, V);
-        let bits = bits & mask;
-        let ptr = self.raw() & !mask;
-        Self(unsafe { NonNull::new_unchecked((ptr | bits) as *mut T) })
-    }
+  /// Takes a value from the high bits of the provided usize and
+  /// steals them from the ointer.
+  pub fn steal(self, bits: usize) -> Self {
+    let mask = asv_mask(A, S, V);
+    let bits = bits & mask;
+    let ptr = self.raw() & !mask;
+    Self(unsafe { NonNull::new_unchecked((ptr | bits) as *mut u8) }, PhantomData)
+  }
 
-    /// Get the pointer without the stolen bits
-    pub fn as_non_null(self) -> NonNull<T> {
-        unsafe { NonNull::new_unchecked(unpack(self.raw(), A, S, V)) }
-    }
+  /// Get the pointer without the stolen bits
+  pub fn as_non_null(self) -> NonNull<T> {
+    unsafe { NonNull::new_unchecked(unpack(self.raw(), A, S, V)) }
+  }
 
-    /// Direct access to the underlying data. The pointer it returns
-    /// may not be valid.
-    pub fn raw(self) -> usize { self.0.as_ptr() as usize }
+  /// Direct access to the underlying data. The pointer it returns
+  /// may not be valid.
+  pub fn raw(self) -> usize { self.0.as_ptr() as usize }
 
 }
+
+/// A Box that we stole the high bits off.
+///
+/// T: type pointed to.
+/// V: number of bits to steal directly by masking them off.
+/// A: number of bits to steal based on the alignment requirements of T.
+#[derive(Debug)]
+#[repr(transparent)]
+#[cfg(feature="alloc")]
+pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
+
+#[cfg(feature="alloc")]
+impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V> {
+  fn clone(&self) -> Self { Ox(self.0, PhantomData) }
+}
+
+impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
+  fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+}
+
+impl<T, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
+
+impl<T, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.0.hash(state)
+  }
+}
+
+
+#[cfg(feature="alloc")]
+impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
+  /// Creates a new Ox from a box.
+  ///
+  /// # Safety
+  ///
+  /// * T's alignment must enable stealing A bits.
+  /// * The high bits (sign upwards) must match a stack pointer's high bits.
+  /// * If compiling for a 64bit arch, V must be at most 25.
+  /// * If compiling for a non-64bit arch, V must be 0.
+  ///
+  /// These invariants are checked with `debug_assert` only, hence
+  /// `unsafe`. The usual caveats of pointers apply.
+  pub unsafe fn new(boxed: Box<T>) -> Self {
+    let ptr = Box::into_raw(boxed);
+    let ptr = pack(ptr, A, S, V) as *mut u8;
+    Ox(NonNull::new_unchecked(ptr), PhantomData)
+  }
+
+  /// Constructor that enables stealing bits.
+  ///
+  /// # Safety
+  ///
+  /// Same as `new`
+  pub unsafe fn new_stealing(boxed: Box<T>, bits: usize) -> Self {
+    let mask = asv_mask(A, S, V);
+    let ptr = (bits & mask) | (Box::into_raw(boxed) as usize & !mask);
+    Self(NonNull::new_unchecked(ptr as *mut u8), PhantomData)
+  }
+
+  /// Returns the stolen bits in the high pos.
+  pub fn stolen(&self) -> usize { self.0.as_ptr() as usize & asv_mask(A, S, V) }
+
+  /// Takes a value from the high bits of the provided usize and
+  /// steals them from the ox.
+  pub fn steal(&mut self, bits: usize) {
+    let mask = asv_mask(A, S, V);
+    let bits = bits & mask;
+    let ptr = self.raw() & !mask;
+    self.0 = unsafe { NonNull::new_unchecked((ptr | bits) as *mut u8) };
+  }
+
+  /// Get the box back without the stolen bits
+  pub fn into_box(self) -> Box<T> {
+    unsafe { Box::from_raw(unpack(self.raw(), A, S, V)) }
+  }
+
+  /// Get the box back without the stolen bits
+  pub fn as_ptr(&self) -> *mut T { self.0.as_ptr().cast() }
+
+  /// Direct access to the underlying data. The pointer it returns
+  /// may not be valid.
+  pub fn raw(&self) -> usize { self.0.as_ptr() as usize }
+}
+
+#[cfg(feature="alloc")]
+impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
+  type Target = T;
+  fn deref(&self) -> &T {
+    unsafe { &*self.0.as_ptr().cast() }
+  }
+}
+
+#[cfg(feature="alloc")]
+impl<T, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
+  fn deref_mut(&mut self) -> &mut T {
+    unsafe { &mut *self.0.as_ptr().cast() }
+  }
+}
+
+#[cfg(feature="alloc")]
+impl<T, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
+  fn drop(&mut self) {
+    drop(unsafe { Box::from_raw(self.0.as_ptr()) })
+  }
+}
+
+
 
 /// Packs a pointer into the bottom `sizeof(usize) - (a + s + v)` bits of a usize.
 ///
@@ -238,28 +396,28 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 /// These invariants are checked with `debug_assert` only, hence
 /// `unsafe`. The usual caveats of pointers apply.
 pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> usize {
-    let sv = asv_mask(0, s, v);
-    #[cfg(debug_assertions)]
-    {
-        debug_assert!((1 << a) <= align_of::<T>());
-        #[cfg(all(not(target_pointer_width="64"), not(feature="i_know_what_im_doing")))]
-        debug_assert!(v == 0);
-        debug_assert!(v <= 25);
-        // If S is set, the user has indicated they will never be
-        // dealing with foreign pointers, so we can check that
-        // too. We need only really check the sign bit because of
-        // canonicalisation, but it's actually cheaper to check
-        // all the high bits.
-        if s {
-            // We don't want to take account of A yet as the pointer
-            // is still in its undoctored state.
-            let ptr = ptr as usize;
-            let stack = (&ptr as *const usize) as usize;
-            // the top bits should match
-            debug_assert!((sv & ptr) == (sv & stack));
-        }
+  let sv = asv_mask(0, s, v);
+  #[cfg(debug_assertions)]
+  {
+    debug_assert!((1 << a) <= align_of::<T>());
+    #[cfg(all(not(target_pointer_width="64"), not(feature="i_know_what_im_doing")))]
+    debug_assert!(v == 0);
+    debug_assert!(v <= 25);
+    // If S is set, the user has indicated they will never be
+    // dealing with foreign pointers, so we can check that
+    // too. We need only really check the sign bit because of
+    // canonicalisation, but it's actually cheaper to check
+    // all the high bits.
+    if s {
+      // We don't want to take account of A yet as the pointer
+      // is still in its undoctored state.
+      let ptr = ptr as usize;
+      let stack = (&ptr as *const usize) as usize;
+      // the top bits should match
+      debug_assert!((sv & ptr) == (sv & stack));
     }
-    (ptr as usize & !sv) >> a as usize
+  }
+  (ptr as usize & !sv) >> a as usize
 }
 
 
@@ -275,21 +433,21 @@ pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> usize {
 /// pointer must be packed into the lower bits. Not strictly unsafe,
 /// but indicative of a bug in your program.
 pub unsafe fn unpack<T: Sized>(packed: usize, a: u8, s: bool, v: u8) -> *mut T {
-    // Mask off all the stolen bits to get the pointer data.
-    let asv = asv_mask(a, s, v);
-    let masked = packed & !asv;
-    // Restore the empty alignment bits
-    let base = masked << a;
-    if s {
-        // Copy the top bits of a stack pointer
-        let sv = asv_mask(0, s, v);
-        let base = base as usize & !sv;
-        let stack = (&base as *const usize) as usize & sv;
-        (stack | base) as *mut T
-    } else {
-        // We need to extend the sign bit.
-        (((base << v as usize) as isize) >> v as usize) as *mut T
-    }
+  // Mask off all the stolen bits to get the pointer data.
+  let asv = asv_mask(a, s, v);
+  let masked = packed & !asv;
+  // Restore the empty alignment bits
+  let base = masked << a;
+  if s {
+    // Copy the top bits of a stack pointer
+    let sv = asv_mask(0, s, v);
+    let base = base & !sv;
+    let stack = (&base as *const usize) as usize & sv;
+    (stack | base) as *mut T
+  } else {
+    // We need to extend the sign bit.
+    (((base << v as usize) as isize) >> v as usize) as *mut T
+  }
 }
 
 /// Produces a mask where the stolen bits (at the top) are set
@@ -298,7 +456,7 @@ pub const fn asv_mask(a: u8, s: bool, v: u8) -> usize { mask(a + s as u8 + v) }
 /// Produces a mask where the stolen bits (at the top) are set
 pub const fn mask(bits: u8) -> usize { (isize::MIN >> (max(bits as usize,1) - 1)) as usize }
 
-// core::cmp::max isn't a const fn
+// core::cmp::max and usize::max aren't const fns
 const fn max(x: usize, y: usize) -> usize {
-    if x <= y { y } else { x }
+  if x <= y { y } else { x }
 }
