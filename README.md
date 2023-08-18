@@ -145,6 +145,10 @@ These will likely be harder:
 
 ## Changelog
 
+### v4.0.1
+
+* Optional pointer provenance support with the `sptr` feature (thanks @GoldsteinE!)
+
 ### v4.0.0
 
 Security (please upgrade as soon as possible, i've yanked old versions):

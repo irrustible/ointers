@@ -1,6 +1,6 @@
 [package]
 name = "ointers"
-version = "4.0.0"
+version = "4.0.1"
 description = "What do you call a pointer we stole the high bits off? An ointer."
 keywords = ["pointer", "bits", "intrusive", "tagged"]
 categories = ["algorithms", "data-structures", "embedded", "memory-management", "no-std"]
