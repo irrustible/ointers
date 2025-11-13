@@ -432,11 +432,13 @@ impl<T, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
 ///
 /// These invariants are checked with `debug_assert` only, hence
 /// `unsafe`. The usual caveats of pointers apply.
-pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> *mut T {
+pub unsafe fn pack<T: ?Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> *mut T {
   let sv = asv_mask(0, s, v);
   #[cfg(debug_assertions)]
   {
-    debug_assert!((1 << a) <= align_of::<T>());
+    if let Some(p) = ptr.as_ref() {
+      debug_assert!((1 << a) <= core::mem::align_of_val(p));
+    }
     #[cfg(all(
       not(target_pointer_width = "64"),
       not(feature = "i_know_what_im_doing")
@@ -471,7 +473,7 @@ pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> *mut T {
 /// You must use the same settings as you packed the pointer with. The
 /// pointer must be packed into the lower bits. Not strictly unsafe,
 /// but indicative of a bug in your program.
-pub unsafe fn unpack<T: Sized>(packed: *mut T, a: u8, s: bool, v: u8) -> *mut T {
+pub unsafe fn unpack<T: ?Sized>(packed: *mut T, a: u8, s: bool, v: u8) -> *mut T {
   // Mask off all the stolen bits to get the pointer data.
   let asv = asv_mask(a, s, v);
   let masked = packed.addr() & !asv;
