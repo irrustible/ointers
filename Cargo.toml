@@ -16,9 +16,8 @@ readme = "README.md"
 default = ["alloc"]
 alloc = []
 i_know_what_im_doing = []
-
-[dependencies]
-sptr = { version = "0.3", optional = true }
+# deprecated: does nothing
+sptr = []
 
 [dev-dependencies]
 rand = "0.8.4"

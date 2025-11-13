@@ -119,11 +119,6 @@ use core::mem::align_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
-#[cfg(not(feature = "sptr"))]
-mod sptr;
-
-use sptr::Strict as _;
-
 /// A pointer we stole the high bits off
 ///
 /// T: type pointed to.
@@ -211,7 +206,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
   pub fn raw(self) -> usize {
-    self.ptr.expose_addr()
+    self.ptr.expose_provenance()
   }
 }
 
@@ -300,7 +295,7 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
   pub fn raw(self) -> usize {
-    self.0.as_ptr().expose_addr()
+    self.0.as_ptr().expose_provenance()
   }
 }
 
@@ -393,7 +388,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
   pub fn raw(&self) -> usize {
-    self.0.as_ptr().expose_addr()
+    self.0.as_ptr().expose_provenance()
   }
 }
 
