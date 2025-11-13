@@ -3,7 +3,13 @@ name = "ointers"
 version = "4.0.2"
 description = "What do you call a pointer we stole the high bits off? An ointer."
 keywords = ["pointer", "bits", "intrusive", "tagged"]
-categories = ["algorithms", "data-structures", "embedded", "memory-management", "no-std"]
+categories = [
+  "algorithms",
+  "data-structures",
+  "embedded",
+  "memory-management",
+  "no-std",
+]
 authors = ["James Laver <james.laver@gmail.com>"]
 homepage = "https://github.com/irrustible/ointers"
 repository = "https://github.com/irrustible/ointers"
@@ -11,16 +17,15 @@ documentation = "https://docs.rs/ointers"
 edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
+rust-version = "1.84.0"
 
 [features]
 default = ["alloc"]
 alloc = []
 i_know_what_im_doing = []
-
-[dependencies]
-sptr = { version = "0.3", optional = true }
+# deprecated: does nothing
+sptr = []
 
 [dev-dependencies]
 rand = "0.8.4"
 rayon = "1.5.1"
-

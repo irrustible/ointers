@@ -145,6 +145,11 @@ These will likely be harder:
 
 ## Changelog
 
+### v5.0.0 (Unreleased)
+
+* Removed provenance support with `sptr` in favour of using the
+  stdlib's native support (this increases the MSRV to Rust 1.84.0).
+
 ### v4.0.2
 
 This is a transitional release to keep support for pre-1.84 rust compilers
