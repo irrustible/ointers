@@ -218,13 +218,13 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 #[repr(transparent)]
 pub struct NotNull<T: ?Sized, const A: u8, const S: bool, const V: u8>(NonNull<T>);
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
 
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> PartialEq<Self> for NotNull<T, A, S, V> {
   fn eq(&self, other: &Self) -> bool {
@@ -305,23 +305,33 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 #[derive(Debug)]
 #[repr(transparent)]
 #[cfg(feature = "alloc")]
-pub struct Ox<T: ?Sized, const A: u8, const S: bool, const V: u8>(NonNull<T>);
+pub struct Ox<T: ?Sized, const A: u8, const S: bool, const V: u8>(NotNull<T, A, S, V>);
 
 #[cfg(feature = "alloc")]
-impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
+where
+  Box<T>: Clone,
+{
+  /// Clones allocation but keeps stolen bits the same
   fn clone(&self) -> Self {
-    Ox(self.0)
+    // Cannot drop clone_alloc since self points to it
+    let clone_alloc = core::mem::ManuallyDrop::new(unsafe { Box::from_raw(self.as_ptr()) });
+    let cloned = clone_alloc.clone();
+    unsafe { Ox::new_stealing(core::mem::ManuallyDrop::into_inner(cloned), self.stolen()) }
   }
 }
 
+#[cfg(feature = "alloc")]
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
   fn eq(&self, other: &Self) -> bool {
-    core::ptr::eq(self.0.as_ptr(), other.0.as_ptr())
+    self.0 == other.0
   }
 }
 
+#[cfg(feature = "alloc")]
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
 
+#[cfg(feature = "alloc")]
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
@@ -344,7 +354,7 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   pub unsafe fn new(boxed: Box<T>) -> Self {
     let ptr = Box::into_raw(boxed);
     let ptr = pack(ptr, A, S, V);
-    Ox(NonNull::new_unchecked(ptr))
+    Ox(NotNull(NonNull::new_unchecked(ptr)))
   }
 
   /// Constructor that enables stealing bits.
@@ -356,22 +366,18 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
     let mask = asv_mask(A, S, V);
     let orig_ptr = Box::into_raw(boxed);
     let ptr = orig_ptr.with_addr((bits & mask) | (orig_ptr.addr() & !mask));
-    Self(NonNull::new_unchecked(ptr))
+    Self(NotNull(NonNull::new_unchecked(ptr)))
   }
 
   /// Returns the stolen bits in the high pos.
   pub fn stolen(&self) -> usize {
-    self.0.as_ptr().addr() & asv_mask(A, S, V)
+    self.0.stolen()
   }
 
   /// Takes a value from the high bits of the provided usize and
   /// steals them from the ox.
   pub fn steal(&mut self, bits: usize) {
-    let mask = asv_mask(A, S, V);
-    let bits = bits & mask;
-    self.0 = self
-      .0
-      .map_addr(|addr| unsafe { NonZeroUsize::new_unchecked(addr.get() & !mask) } | bits);
+    self.0 = self.0.steal(bits);
   }
 
   /// Get the box back without the stolen bits
@@ -381,13 +387,18 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
 
   /// Get the box back without the stolen bits
   pub fn as_ptr(&self) -> *mut T {
-    self.0.as_ptr()
+    self.0.as_non_null().as_ptr()
+  }
+
+  /// Get the box back without the stolen bits
+  pub fn as_non_null(&self) -> NonNull<T> {
+    self.0.as_non_null()
   }
 
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
   pub fn raw(&self) -> usize {
-    self.0.as_ptr().expose_provenance()
+    self.0.raw()
   }
 }
 
@@ -395,21 +406,21 @@ impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
   type Target = T;
   fn deref(&self) -> &T {
-    unsafe { self.0.as_ref() }
+    unsafe { self.as_non_null().as_ref() }
   }
 }
 
 #[cfg(feature = "alloc")]
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
   fn deref_mut(&mut self) -> &mut T {
-    unsafe { self.0.as_mut() }
+    unsafe { self.as_non_null().as_mut() }
   }
 }
 
 #[cfg(feature = "alloc")]
 impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
   fn drop(&mut self) {
-    drop(unsafe { Box::from_raw(self.0.as_ptr()) })
+    drop(unsafe { Box::from_raw(self.as_ptr()) })
   }
 }
 
