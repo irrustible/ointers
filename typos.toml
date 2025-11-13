@@ -1,0 +1,3 @@
+[default.extend-words]
+ointer = "ointer"   # pun & name of this crate's main type
+ointers = "ointers" # pun & name of this crate's main type
