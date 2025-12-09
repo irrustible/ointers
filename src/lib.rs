@@ -116,6 +116,7 @@ use alloc::boxed::Box;
 use core::hash::*;
 use core::marker::PhantomData;
 use core::mem::align_of;
+#[cfg(feature="alloc")]
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
@@ -298,12 +299,15 @@ impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V> {
   fn clone(&self) -> Self { Ox(self.0, PhantomData) }
 }
 
+#[cfg(feature="alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
   fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
 }
 
+#[cfg(feature="alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
 
+#[cfg(feature="alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
