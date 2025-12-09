@@ -295,8 +295,17 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
 
 #[cfg(feature="alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V> {
-  fn clone(&self) -> Self { Ox(self.0, PhantomData) }
+impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
+  where
+    Box<T>: Clone
+{
+  fn clone(&self) -> Self {
+    // Safety: even though we have mutable access to the ptr, we don't use it as it is ManuallyDrop
+    let old = core::mem::ManuallyDrop::new(unsafe { Box::from_raw(self.as_ptr()) });
+    let boxed = core::mem::ManuallyDrop::into_inner(old.clone());
+    // Safety: the stolen bits where taken from an existing Ox (thus safe)
+    unsafe { Ox::new_stealing(boxed, self.stolen()) }
+  }
 }
 
 #[cfg(feature="alloc")]
