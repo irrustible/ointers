@@ -10,7 +10,7 @@ Ointers is a library for representing pointers where some bits have
 been stolen so that they may be used by the programmer for something
 else. In effect, it's a small amount of free storage
 
-Fully supports no_std, dependency-free, <100loc.
+Fully supports no_std (including no-alloc), small and dependency-free.
 
 ## Bit sources
 
@@ -144,6 +144,18 @@ These will likely be harder:
   the hardware..
 
 ## Changelog
+
+### v4.0.2
+
+This is a transitional release to keep support for pre-1.84 rust compilers
+while yanking the previous version because of the security fix. V5 will be
+released imminently and you should prefer to use it if you are able.
+
+Security:
+* Fixed `Ox` cloning, preventing potential UAF  (thanks @jalil-salame!)
+
+Misc:
+* Fixed the build with `--no-default-features` (i.e. use without allocator - thanks @00xc!)
 
 ### v4.0.1
 
