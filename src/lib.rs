@@ -304,7 +304,7 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 #[derive(Debug)]
 #[repr(transparent)]
 #[cfg(feature = "alloc")]
-pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<T>);
+pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NotNull<T, A, S, V>);
 
 #[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
@@ -353,7 +353,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   pub unsafe fn new(boxed: Box<T>) -> Self {
     let ptr = Box::into_raw(boxed);
     let ptr = pack(ptr, A, S, V);
-    Ox(NonNull::new_unchecked(ptr))
+    Ox(NotNull::new(NonNull::new_unchecked(ptr)))
   }
 
   /// Constructor that enables stealing bits.
@@ -365,12 +365,12 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
     let mask = asv_mask(A, S, V);
     let orig_ptr = Box::into_raw(boxed);
     let ptr = orig_ptr.map_addr(|addr| (bits & mask) | (addr & !mask));
-    Self(NonNull::new_unchecked(ptr))
+    Self(NotNull::new(NonNull::new_unchecked(ptr)))
   }
 
   /// Returns the stolen bits in the high pos.
   pub fn stolen(&self) -> usize {
-    self.0.as_ptr().addr() & asv_mask(A, S, V)
+    self.0.stolen()
   }
 
   /// Takes a value from the high bits of the provided usize and
@@ -379,7 +379,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
     let mask = asv_mask(A, S, V);
     let bits = bits & mask;
     let ptr = self.as_ptr().map_addr(|addr| (addr & !mask) | bits);
-    self.0 = unsafe { NonNull::new_unchecked(ptr) };
+    self.0 = unsafe { NotNull::new(NonNull::new_unchecked(ptr)) };
   }
 
   /// Get the box back without the stolen bits
@@ -389,13 +389,13 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
 
   /// Get the box back without the stolen bits
   pub fn as_ptr(&self) -> *mut T {
-    self.0.as_ptr().cast()
+    self.0.as_non_null().as_ptr()
   }
 
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
   pub fn raw(&self) -> usize {
-    self.0.as_ptr().expose_provenance()
+    self.0.as_non_null().as_ptr().expose_provenance()
   }
 }
 
@@ -403,21 +403,21 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
 impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
   type Target = T;
   fn deref(&self) -> &T {
-    unsafe { &*self.0.as_ptr().cast() }
+    unsafe { self.0.as_non_null().as_ref() }
   }
 }
 
 #[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
   fn deref_mut(&mut self) -> &mut T {
-    unsafe { &mut *self.0.as_ptr().cast() }
+    unsafe { self.0.as_non_null().as_mut() }
   }
 }
 
 #[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
   fn drop(&mut self) {
-    drop(unsafe { Box::from_raw(self.0.as_ptr()) })
+    drop(unsafe { Box::from_raw(self.0.as_non_null().as_ptr()) })
   }
 }
 
