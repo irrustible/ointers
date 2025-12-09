@@ -114,7 +114,6 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use core::hash::*;
-use core::marker::PhantomData;
 use core::mem::align_of;
 #[cfg(feature = "alloc")]
 use core::ops::{Deref, DerefMut};
@@ -305,7 +304,7 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 #[derive(Debug)]
 #[repr(transparent)]
 #[cfg(feature = "alloc")]
-pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
+pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<T>);
 
 #[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
@@ -353,8 +352,8 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   /// `unsafe`. The usual caveats of pointers apply.
   pub unsafe fn new(boxed: Box<T>) -> Self {
     let ptr = Box::into_raw(boxed);
-    let ptr = pack(ptr, A, S, V) as *mut u8;
-    Ox(NonNull::new_unchecked(ptr), PhantomData)
+    let ptr = pack(ptr, A, S, V);
+    Ox(NonNull::new_unchecked(ptr))
   }
 
   /// Constructor that enables stealing bits.
@@ -365,8 +364,8 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   pub unsafe fn new_stealing(boxed: Box<T>, bits: usize) -> Self {
     let mask = asv_mask(A, S, V);
     let orig_ptr = Box::into_raw(boxed);
-    let ptr = orig_ptr.with_addr((bits & mask) | (orig_ptr.addr() & !mask));
-    Self(NonNull::new_unchecked(ptr as *mut u8), PhantomData)
+    let ptr = orig_ptr.map_addr(|addr| (bits & mask) | (addr & !mask));
+    Self(NonNull::new_unchecked(ptr))
   }
 
   /// Returns the stolen bits in the high pos.
@@ -379,8 +378,8 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   pub fn steal(&mut self, bits: usize) {
     let mask = asv_mask(A, S, V);
     let bits = bits & mask;
-    let ptr = self.raw() & !mask;
-    self.0 = unsafe { NonNull::new_unchecked((ptr | bits) as *mut u8) };
+    let ptr = self.as_ptr().map_addr(|addr| (addr & !mask) | bits);
+    self.0 = unsafe { NonNull::new_unchecked(ptr) };
   }
 
   /// Get the box back without the stolen bits
