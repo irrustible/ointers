@@ -114,7 +114,6 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use core::hash::*;
-use core::mem::align_of;
 #[cfg(feature = "alloc")]
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
@@ -128,33 +127,37 @@ use core::ptr::NonNull;
 
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Ointer<T, const A: u8, const S: bool, const V: u8> {
+pub struct Ointer<T: ?Sized, const A: u8, const S: bool, const V: u8> {
   ptr: *mut T,
 }
 
-impl<T, const A: u8, const S: bool, const V: u8> Hash for Ointer<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Hash for Ointer<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.ptr.hash(state)
   }
 }
 
-impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ointer<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ointer<T, A, S, V> {
+  #![allow(
+    ambiguous_wide_pointer_comparisons,
+    reason = "mirroring the behaviour of rust ptrs"
+  )]
   fn eq(&self, other: &Self) -> bool {
     self.ptr == other.ptr
   }
 }
 
-impl<T, const A: u8, const S: bool, const V: u8> Eq for Ointer<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Eq for Ointer<T, A, S, V> {}
 
-impl<T, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<T, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
 
-impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
   /// Creates a new Ointer from a presumed legitimate pointer.
   ///
   /// # Safety
@@ -217,31 +220,35 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 /// A: number of bits to steal based on the alignment requirements of T.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct NotNull<T, const A: u8, const S: bool, const V: u8>(NonNull<T>);
+pub struct NotNull<T: ?Sized, const A: u8, const S: bool, const V: u8>(NonNull<T>);
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
   fn clone(&self) -> Self {
     *self
   }
 }
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
 
-impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for NotNull<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> PartialEq<Self> for NotNull<T, A, S, V> {
+  #![allow(
+    ambiguous_wide_pointer_comparisons,
+    reason = "mirroring the behaviour of NonNull<T>"
+  )]
   fn eq(&self, other: &Self) -> bool {
     self.0 == other.0
   }
 }
 
-impl<T, const A: u8, const S: bool, const V: u8> Eq for NotNull<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Eq for NotNull<T, A, S, V> {}
 
-impl<T, const A: u8, const S: bool, const V: u8> Hash for NotNull<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Hash for NotNull<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
   }
 }
 
-impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
   /// Creates a new Ointer from a presumed legitimate pointer.
   ///
   /// # Safety
@@ -304,10 +311,10 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 #[derive(Debug)]
 #[repr(transparent)]
 #[cfg(feature = "alloc")]
-pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NotNull<T, A, S, V>);
+pub struct Ox<T: ?Sized, const A: u8, const S: bool, const V: u8>(NotNull<T, A, S, V>);
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
 where
   Box<T>: Clone,
 {
@@ -321,24 +328,24 @@ where
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
   fn eq(&self, other: &Self) -> bool {
     self.0 == other.0
   }
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
   }
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   /// Creates a new Ox from a box.
   ///
   /// # Safety
@@ -400,7 +407,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
   type Target = T;
   fn deref(&self) -> &T {
     unsafe { self.0.as_non_null().as_ref() }
@@ -408,14 +415,14 @@ impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
   fn deref_mut(&mut self) -> &mut T {
     unsafe { self.0.as_non_null().as_mut() }
   }
 }
 
 #[cfg(feature = "alloc")]
-impl<T, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
+impl<T: ?Sized, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
   fn drop(&mut self) {
     drop(unsafe { Box::from_raw(self.0.as_non_null().as_ptr()) })
   }
