@@ -108,22 +108,17 @@
 #![no_std]
 #![allow(unstable_name_collisions)]
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 extern crate alloc;
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
 use core::hash::*;
 use core::marker::PhantomData;
 use core::mem::align_of;
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
-
-#[cfg(not(feature="sptr"))]
-mod sptr;
-
-use sptr::Strict as _;
 
 /// A pointer we stole the high bits off
 ///
@@ -145,13 +140,17 @@ impl<T, const A: u8, const S: bool, const V: u8> Hash for Ointer<T, A, S, V> {
 }
 
 impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ointer<T, A, S, V> {
-  fn eq(&self, other: &Self) -> bool { self.ptr == other.ptr }
+  fn eq(&self, other: &Self) -> bool {
+    self.ptr == other.ptr
+  }
 }
 
 impl<T, const A: u8, const S: bool, const V: u8> Eq for Ointer<T, A, S, V> {}
 
 impl<T, const A: u8, const S: bool, const V: u8> Clone for Ointer<T, A, S, V> {
-  fn clone(&self) -> Self { *self }
+  fn clone(&self) -> Self {
+    *self
+  }
 }
 
 impl<T, const A: u8, const S: bool, const V: u8> Copy for Ointer<T, A, S, V> {}
@@ -160,7 +159,7 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
   /// Creates a new Ointer from a presumed legitimate pointer.
   ///
   /// # Safety
-  /// 
+  ///
   /// * T's alignment must enable stealing A bits.
   /// * The high bits (sign upwards) must match a stack pointer's high bits.
   /// * If compiling for a 64bit arch, V must be at most 25.
@@ -169,7 +168,9 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
   /// These invariants are checked with `debug_assert` only, hence
   /// `unsafe`. The usual caveats of pointers apply.
   pub unsafe fn new(ptr: *mut T) -> Self {
-    Ointer { ptr: pack(ptr, A, S, V) }
+    Ointer {
+      ptr: pack(ptr, A, S, V),
+    }
   }
 
   /// Constructor that enables stealing bits.
@@ -184,13 +185,17 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
   }
 
   /// Returns the stolen bits in the high pos.
-  pub fn stolen(self) -> usize { self.ptr.addr() & asv_mask(A, S, V) }
+  pub fn stolen(self) -> usize {
+    self.ptr.addr() & asv_mask(A, S, V)
+  }
 
   /// Takes a value from the high bits of the provided usize and
   /// steals them from the ointer.
   pub fn steal(self, bits: usize) -> Self {
     let mask = asv_mask(A, S, V);
-    let ptr = self.ptr.with_addr((bits & mask) | (self.ptr.addr() & !mask));
+    let ptr = self
+      .ptr
+      .with_addr((bits & mask) | (self.ptr.addr() & !mask));
     Self { ptr }
   }
 
@@ -201,8 +206,9 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
-  pub fn raw(self) -> usize { self.ptr.expose_addr() }
-
+  pub fn raw(self) -> usize {
+    self.ptr.expose_provenance()
+  }
 }
 
 /// A non-null pointer that we stole the high bits off.
@@ -215,13 +221,17 @@ impl<T, const A: u8, const S: bool, const V: u8> Ointer<T, A, S, V> {
 pub struct NotNull<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> Clone for NotNull<T, A, S, V> {
-  fn clone(&self) -> Self { *self }
+  fn clone(&self) -> Self {
+    *self
+  }
 }
 
 impl<T: Sized, const A: u8, const S: bool, const V: u8> Copy for NotNull<T, A, S, V> {}
 
 impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for NotNull<T, A, S, V> {
-  fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+  fn eq(&self, other: &Self) -> bool {
+    self.0 == other.0
+  }
 }
 
 impl<T, const A: u8, const S: bool, const V: u8> Eq for NotNull<T, A, S, V> {}
@@ -261,7 +271,9 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
   }
 
   /// Returns the stolen bits in the high pos.
-  pub fn stolen(self) -> usize { self.0.as_ptr().addr() & asv_mask(A, S, V) }
+  pub fn stolen(self) -> usize {
+    self.0.as_ptr().addr() & asv_mask(A, S, V)
+  }
 
   /// Takes a value from the high bits of the provided usize and
   /// steals them from the ointer.
@@ -270,7 +282,10 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
     let bits = bits & mask;
     let ptr = self.0.as_ptr();
     let addr = ptr.addr() & !mask;
-    Self(unsafe { NonNull::new_unchecked(ptr.with_addr(addr | bits)) }, PhantomData)
+    Self(
+      unsafe { NonNull::new_unchecked(ptr.with_addr(addr | bits)) },
+      PhantomData,
+    )
   }
 
   /// Get the pointer without the stolen bits
@@ -280,8 +295,9 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
-  pub fn raw(self) -> usize { self.0.as_ptr().expose_addr() }
-
+  pub fn raw(self) -> usize {
+    self.0.as_ptr().expose_provenance()
+  }
 }
 
 /// A Box that we stole the high bits off.
@@ -291,13 +307,13 @@ impl<T: Sized, const A: u8, const S: bool, const V: u8> NotNull<T, A, S, V> {
 /// A: number of bits to steal based on the alignment requirements of T.
 #[derive(Debug)]
 #[repr(transparent)]
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 pub struct Ox<T, const A: u8, const S: bool, const V: u8>(NonNull<u8>, PhantomData<T>);
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
-  where
-    Box<T>: Clone
+where
+  Box<T>: Clone,
 {
   fn clone(&self) -> Self {
     // Safety: even though we have mutable access to the ptr, we don't use it as it is ManuallyDrop
@@ -308,23 +324,24 @@ impl<T, const A: u8, const S: bool, const V: u8> Clone for Ox<T, A, S, V>
   }
 }
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> PartialEq<Self> for Ox<T, A, S, V> {
-  fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+  fn eq(&self, other: &Self) -> bool {
+    self.0 == other.0
+  }
 }
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Eq for Ox<T, A, S, V> {}
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Hash for Ox<T, A, S, V> {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
   }
 }
 
-
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   /// Creates a new Ox from a box.
   ///
@@ -356,7 +373,9 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   }
 
   /// Returns the stolen bits in the high pos.
-  pub fn stolen(&self) -> usize { self.0.as_ptr().addr() & asv_mask(A, S, V) }
+  pub fn stolen(&self) -> usize {
+    self.0.as_ptr().addr() & asv_mask(A, S, V)
+  }
 
   /// Takes a value from the high bits of the provided usize and
   /// steals them from the ox.
@@ -373,14 +392,18 @@ impl<T, const A: u8, const S: bool, const V: u8> Ox<T, A, S, V> {
   }
 
   /// Get the box back without the stolen bits
-  pub fn as_ptr(&self) -> *mut T { self.0.as_ptr().cast() }
+  pub fn as_ptr(&self) -> *mut T {
+    self.0.as_ptr().cast()
+  }
 
   /// Direct access to the underlying data. The pointer it returns
   /// may not be valid.
-  pub fn raw(&self) -> usize { self.0.as_ptr().expose_addr() }
+  pub fn raw(&self) -> usize {
+    self.0.as_ptr().expose_provenance()
+  }
 }
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
   type Target = T;
   fn deref(&self) -> &T {
@@ -388,21 +411,19 @@ impl<T, const A: u8, const S: bool, const V: u8> Deref for Ox<T, A, S, V> {
   }
 }
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> DerefMut for Ox<T, A, S, V> {
   fn deref_mut(&mut self) -> &mut T {
     unsafe { &mut *self.0.as_ptr().cast() }
   }
 }
 
-#[cfg(feature="alloc")]
+#[cfg(feature = "alloc")]
 impl<T, const A: u8, const S: bool, const V: u8> Drop for Ox<T, A, S, V> {
   fn drop(&mut self) {
     drop(unsafe { Box::from_raw(self.0.as_ptr()) })
   }
 }
-
-
 
 /// Packs a pointer into the bottom `sizeof(usize) - (a + s + v)` bits of a usize.
 ///
@@ -420,7 +441,10 @@ pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> *mut T {
   #[cfg(debug_assertions)]
   {
     debug_assert!((1 << a) <= align_of::<T>());
-    #[cfg(all(not(target_pointer_width="64"), not(feature="i_know_what_im_doing")))]
+    #[cfg(all(
+      not(target_pointer_width = "64"),
+      not(feature = "i_know_what_im_doing")
+    ))]
     debug_assert!(v == 0);
     debug_assert!(v <= 25);
     // If S is set, the user has indicated they will never be
@@ -439,7 +463,6 @@ pub unsafe fn pack<T: Sized>(ptr: *mut T, a: u8, s: bool, v: u8) -> *mut T {
   }
   ptr.with_addr((ptr.addr() & !sv) >> a as usize)
 }
-
 
 /// Turns the `sizeof(usize) - (a + s + v)` bits of a usize (as
 /// returned from `pack`) back into a pointer.
@@ -471,12 +494,20 @@ pub unsafe fn unpack<T: Sized>(packed: *mut T, a: u8, s: bool, v: u8) -> *mut T 
 }
 
 /// Produces a mask where the stolen bits (at the top) are set
-pub const fn asv_mask(a: u8, s: bool, v: u8) -> usize { mask(a + s as u8 + v) }
+pub const fn asv_mask(a: u8, s: bool, v: u8) -> usize {
+  mask(a + s as u8 + v)
+}
 
 /// Produces a mask where the stolen bits (at the top) are set
-pub const fn mask(bits: u8) -> usize { (isize::MIN >> (max(bits as usize,1) - 1)) as usize }
+pub const fn mask(bits: u8) -> usize {
+  (isize::MIN >> (max(bits as usize, 1) - 1)) as usize
+}
 
 // core::cmp::max and usize::max aren't const fns
 const fn max(x: usize, y: usize) -> usize {
-  if x <= y { y } else { x }
+  if x <= y {
+    y
+  } else {
+    x
+  }
 }

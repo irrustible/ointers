@@ -145,6 +145,10 @@ These will likely be harder:
 
 ## Changelog
 
+### Unreleased
+
+* Removed provenance support with `sptr` in favour of using the stdlib's native support (this increases the MSRV to Rust 1.84.0).
+
 ### v4.0.1
 
 * Optional pointer provenance support with the `sptr` feature (thanks @GoldsteinE!)
