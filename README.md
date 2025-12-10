@@ -20,7 +20,7 @@ when it is safe to use them.
 ### Alignment bits (const parameter A)
 
 If we know that a pointer's address will always be aligned to `A`
-bytes where A > 1, we can steal log2(A-1) bytes. For an 8-byte aligned
+bytes where A > 1, we can steal log2(A-1) bits. For an 8-byte aligned
 value, this provides a modest 3 bits.
 
 If you have values aligned to some larger width, you could get even
@@ -114,6 +114,15 @@ space, you should limit yourself to 7 bits for V. Likewise if you know
 you'll be on 3-deep page tables, you can steal a whopping 25 bits. But
 you're probably limited to 16 bits in general.
 
+## Aarch64 notes
+
+There is as yet no explicit support for any of the optional platform
+features which use the 'unused' high pointer bits, such as MTE or
+Pointer Authentication. These features are typically only used in
+embedded devices, but if you're targeting such a system (and if you
+don't know, you almost certainly aren't), any attempt to steal high
+bits will break everything, so stick to alignment bits.
+
 ## Hacking
 
 Contributions welcome, please be nice.
@@ -141,20 +150,30 @@ These will likely be harder:
 * aarch64, linux with 3PT is probably not widely deployed
 * Intel's new 5PT is of incredibly niche interest - if you want us to
   test it, you'll have to sponsor it because I don't have access to
-  the hardware..
+  the hardware.
 
 ## Changelog
 
-### v5.0.0 (Unreleased)
+### v5.0.0
 
-* Removed provenance support with `sptr` in favour of using the
-  stdlib's native support (this increases the MSRV to Rust 1.84.0).
+New MSRV: Rust 1.84.0
+
+New features:
+
+* Support for unsized types/wide pointers (thanks @jalil-salame!)
+
+Internals:
+* Moved from `sptr` to the new stdlib provenance APIs (thanks @jalil-salame!)
+* Refactored `Ox` to use `NotNull` internally (thanks @jalil-salame!)
+* Refactored to use `*T` instead of `*u8` and `PhantomData` (thanks @jalil-salame!)
+  * Explanation: Misaligned T pointers are only UB to read/write, not to hold (as in C).
+* Added miri support (thanks @jalil-salame!)
 
 ### v4.0.2
 
-This is a transitional release to keep support for pre-1.84 rust compilers
-while yanking the previous version because of the security fix. V5 will be
-released imminently and you should prefer to use it if you are able.
+This is a transitional release to keep support for pre-1.84 rust compilers while
+yanking the previous version because of the security fix. V5 is now available
+and you should prefer to use it if you are able.
 
 Security:
 * Fixed `Ox` cloning, preventing potential UAF  (thanks @jalil-salame!)
@@ -168,9 +187,8 @@ Misc:
 
 ### v4.0.0
 
-Security (please upgrade as soon as possible, i've yanked old versions):
-
 * Fix possible UB when stealing alignment bits with `Ox`/`NotNull`. 
+  * Note: this was overcaution, there was no UB.
 
 Features:
 
