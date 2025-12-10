@@ -21,6 +21,17 @@ fn random_usize(rng: &mut ThreadRng) -> usize {
   rng.next_u64() as usize
 }
 
+#[test]
+fn can_do_unsized_types() {
+  const ALIGN: u8 = align_of::<i32>().ilog2() as u8;
+  let mut array = [1, 2, 3];
+  let slice: &mut [i32] = &mut array;
+  let ptr: Ointer<[i32], { ALIGN }, false, 0> = unsafe { Ointer::new(&raw mut *slice) };
+  let slice: &mut [i32] = &mut array[..1];
+  let ptr2: Ointer<[i32], { ALIGN }, false, 0> = unsafe { Ointer::new(&raw mut *slice) };
+  assert_ne!(ptr, ptr2, "different slices shouldn't compare equal");
+}
+
 fn round_trip_ointer<T: Copy + Debug + Eq, const A: u8, const S: bool, const V: u8>(
   ptr: *mut T,
   val: T,
