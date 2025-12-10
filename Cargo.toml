@@ -1,6 +1,6 @@
 [package]
 name = "ointers"
-version = "4.0.2"
+version = "5.0.0"
 description = "What do you call a pointer we stole the high bits off? An ointer."
 keywords = ["pointer", "bits", "intrusive", "tagged"]
 categories = [
@@ -14,7 +14,7 @@ authors = ["James Laver <james.laver@gmail.com>"]
 homepage = "https://github.com/irrustible/ointers"
 repository = "https://github.com/irrustible/ointers"
 documentation = "https://docs.rs/ointers"
-edition = "2018"
+edition = "2018" # we can't upgrade to 2024 as that would raise MSRV to 1.85
 license = "Apache-2.0 WITH LLVM-exception"
 readme = "README.md"
 rust-version = "1.84.0"
