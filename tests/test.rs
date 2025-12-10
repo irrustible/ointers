@@ -124,9 +124,17 @@ macro_rules! rt_not_null {
   };
 }
 
+fn miri_or_rayon(test_fn: impl Fn(i32) + Sync + Send) {
+  if cfg!(miri) {
+    test_fn(0);
+  } else {
+    (0..1_000_000).into_par_iter().for_each(test_fn)
+  }
+}
+
 #[test]
 fn round_trip_ointer_locals() {
-  (0..1_000_000).into_par_iter().for_each(|_| {
+  miri_or_rayon(|_| {
     let mut rng = thread_rng();
     let mut a: usize = random_usize(&mut rng);
     let theft = random_usize(&mut rng);
@@ -168,7 +176,7 @@ fn round_trip_ointer_locals() {
 
 #[test]
 fn round_trip_ointer_boxes() {
-  (0..1_000_000).into_par_iter().for_each(|_| {
+  miri_or_rayon(|_| {
     let mut rng = thread_rng();
     let a = Box::into_raw(Box::new(random_usize(&mut rng)));
     let theft = random_usize(&mut rng);
@@ -213,7 +221,7 @@ fn round_trip_ointer_boxes() {
 
 #[test]
 fn round_trip_not_null_locals() {
-  (0..1_000_000).into_par_iter().for_each(|_| {
+  miri_or_rayon(|_| {
     let mut rng = thread_rng();
     let mut a: usize = random_usize(&mut rng);
     let b = unsafe { NonNull::new_unchecked(&mut a as *mut usize) };
@@ -256,7 +264,7 @@ fn round_trip_not_null_locals() {
 
 #[test]
 fn round_trip_not_null_boxes() {
-  (0..1_000_000).into_par_iter().for_each(|_| {
+  miri_or_rayon(|_| {
     let mut rng = thread_rng();
     let a = Box::into_raw(Box::new(random_usize(&mut rng)));
     let b = unsafe { NonNull::new_unchecked(a) };
